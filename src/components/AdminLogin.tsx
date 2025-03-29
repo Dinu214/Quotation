@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './Button';
 
 interface AdminLoginProps {
@@ -15,15 +15,28 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose }) => {
     e.preventDefault();
     // Simple authentication - in a real app, this would be a secure API call
     if (username === 'admin' && password === 'password') {
+      // Save admin session to localStorage
+      localStorage.setItem('terraems_admin_session', 'true');
       onLogin(true);
     } else {
       setError('Invalid username or password');
     }
   };
 
+  // Handle clicks outside the modal to prevent accidental closing
+  const handleModalClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 w-full max-w-md">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-lg p-8 w-full max-w-md"
+        onClick={handleModalClick}
+      >
         <h2 className="text-2xl font-semibold mb-6 text-gray-800">Admin Login</h2>
         
         {error && (
@@ -62,7 +75,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose }) => {
           </div>
           
           <div className="flex justify-end space-x-3">
-            <Button variant="secondary" onClick={onClose}>
+            <Button variant="secondary" onClick={onClose} type="button">
               Cancel
             </Button>
             <Button variant="primary" type="submit">

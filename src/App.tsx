@@ -10,6 +10,7 @@ import { Button } from './components/Button';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 import { getPricingConfig } from './services/pricingService';
+import Toast from './components/Toast';
 
 // Define interfaces for clarity
 interface MeterConfig {
@@ -34,6 +35,23 @@ const App: React.FC = () => {
   // --- State Variables ---
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    show: false,
+    message: '',
+    type: 'info'
+  });
+
+  // Check for existing admin session on component mount
+  useEffect(() => {
+    const adminSession = localStorage.getItem('terraems_admin_session');
+    if (adminSession === 'true') {
+      setIsAdminLoggedIn(true);
+    }
+  }, []);
 
   // Energy Meters
   const [meters, setMeters] = useState<MeterConfig[]>([
@@ -261,7 +279,7 @@ const App: React.FC = () => {
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({
-              text: "Bhuj, Gujarat, India Pricing (INR)",
+              text: "India Pricing (INR)",
               alignment: AlignmentType.CENTER,
             }),
             new Paragraph({ text: "" }), // Empty line for spacing
@@ -844,7 +862,7 @@ const App: React.FC = () => {
               heading: HeadingLevel.HEADING_1,
             }),
             new Paragraph({ text: "TerraEMS" }),
-            new Paragraph({ text: "Bhuj, Gujarat, India" }),
+            new Paragraph({ text: "Gujarat, India" }),
             new Paragraph({ text: "Email: info@terraems.com" }),
             new Paragraph({ text: "Phone: +91 XXXXXXXXXX" }),
           ],
@@ -913,6 +931,11 @@ const App: React.FC = () => {
     if (success) {
       setIsAdminLoggedIn(true);
       setIsAdminLoginOpen(false);
+      setToast({
+        show: true,
+        message: 'Logged in successfully!',
+        type: 'success'
+      });
     }
   };
 
@@ -920,6 +943,11 @@ const App: React.FC = () => {
     setIsAdminLoggedIn(false);
      // Trigger a reload of pricing data when returning from admin dashboard
      setPricingReloadTrigger(prev => prev + 1);
+     setToast({
+      show: true,
+      message: 'Logged out successfully!',
+      type: 'info'
+    });
   };
 
   // --- Render ---
@@ -932,7 +960,7 @@ const App: React.FC = () => {
       <header className="mb-8 text-center relative">
         <div className="absolute top-0 right-0">
           <Button 
-            variant="secondary" 
+            variant="primary" 
             onClick={() => setIsAdminLoginOpen(true)}
             className="text-sm"
           >
@@ -940,7 +968,7 @@ const App: React.FC = () => {
           </Button>
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-blue-700">TerraEMS Quotation Generator</h1>
-        <p className="text-gray-600 mt-2">Bhuj, Gujarat, India Pricing (INR)</p>
+        <p className="text-gray-600 mt-2">India Pricing (INR)</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -991,70 +1019,70 @@ const App: React.FC = () => {
           </div>
 
           {/* TerraEdge Device */}
-          // Inside the TerraEdge Device section of the UI
-<div className="mb-6">
-  <h3 className="text-lg font-medium mb-3 text-gray-700">3. TerraEdge Device</h3>
-  <div className="flex items-center mb-2">
-    <input
-      type="checkbox"
-      id="terraEdge"
-      checked={terraEdgeRequired}
-      onChange={(e) => setTerraEdgeRequired(e.target.checked)}
-      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-    />
-    <label htmlFor="terraEdge" className="ml-2 text-sm text-gray-700">Require TerraEdge - Modbus RTU/TCP</label>
-  </div>
-  {terraEdgeRequired && (
-    <div className="ml-6 space-y-3">
-      {/* Quantity Input */}
-      <div className="flex items-center space-x-2">
-        <label htmlFor="terraEdgeQty" className="text-sm text-gray-600">Quantity:</label>
-        <input
-          type="number"
-          id="terraEdgeQty"
-          min="1"
-          value={terraEdgeQuantity === 0 ? '' : terraEdgeQuantity}
-          onChange={(e) => handleTerraEdgeQuantityChange(e.target.value)}
-          className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-          placeholder="Qty"
-        />
-      </div>
+                
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-3 text-gray-700">3. TerraEdge Device</h3>
+          <div className="flex items-center mb-2">
+            <input
+              type="checkbox"
+              id="terraEdge"
+              checked={terraEdgeRequired}
+              onChange={(e) => setTerraEdgeRequired(e.target.checked)}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="terraEdge" className="ml-2 text-sm text-gray-700">Require TerraEdge - Modbus RTU/TCP</label>
+          </div>
+          {terraEdgeRequired && (
+            <div className="ml-6 space-y-3">
+              {/* Quantity Input */}
+              <div className="flex items-center space-x-2">
+                <label htmlFor="terraEdgeQty" className="text-sm text-gray-600">Quantity:</label>
+                <input
+                  type="number"
+                  id="terraEdgeQty"
+                  min="1"
+                  value={terraEdgeQuantity === 0 ? '' : terraEdgeQuantity}
+                  onChange={(e) => handleTerraEdgeQuantityChange(e.target.value)}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  placeholder="Qty"
+                />
+              </div>
 
-      {/* Payment Option */}
-      <div>
-        <p className="text-sm text-gray-600 mb-1">Payment Option:</p>
-        <div className="flex items-center">
-          <input
-            type="radio"
-            id="edgeMonthly"
-            name="edgePayment"
-            value="monthly"
-            checked={terraEdgePayment === 'monthly'}
-            onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
-            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-          />
-          <label htmlFor="edgeMonthly" className="ml-2 text-sm text-gray-700">
-            Monthly (₹{getPricingConfig().edgeDevice.monthlyRate}/month)
-          </label>
+              {/* Payment Option */}
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Payment Option:</p>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="edgeMonthly"
+                    name="edgePayment"
+                    value="monthly"
+                    checked={terraEdgePayment === 'monthly'}
+                    onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="edgeMonthly" className="ml-2 text-sm text-gray-700">
+                    Monthly (₹{getPricingConfig().edgeDevice.monthlyRate}/month)
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="edgeOneTime"
+                    name="edgePayment"
+                    value="one-time"
+                    checked={terraEdgePayment === 'one-time'}
+                    onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="edgeOneTime" className="ml-2 text-sm text-gray-700">
+                    One-Time (₹{getPricingConfig().edgeDevice.oneTimeRate})
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex items-center">
-          <input
-            type="radio"
-            id="edgeOneTime"
-            name="edgePayment"
-            value="one-time"
-            checked={terraEdgePayment === 'one-time'}
-            onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
-            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-          />
-          <label htmlFor="edgeOneTime" className="ml-2 text-sm text-gray-700">
-            One-Time (₹{getPricingConfig().edgeDevice.oneTimeRate})
-          </label>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
 
                     
         {/* Service Charges */}
@@ -1174,13 +1202,21 @@ const App: React.FC = () => {
       </section>
     </div>
 
-    {/* Admin Login Modal */}
     {isAdminLoginOpen && (
-      <AdminLogin 
-        onLogin={handleAdminLogin} 
-        onClose={() => setIsAdminLoginOpen(false)} 
-      />
-    )}
+        <AdminLogin 
+          onLogin={handleAdminLogin} 
+          onClose={() => setIsAdminLoginOpen(false)} 
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
   </div>
   );
 };

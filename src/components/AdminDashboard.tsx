@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './Button';
+import Toast from './Toast';
 import { 
   getPricingConfig, 
+  savePricingConfig,
   PricingConfig, 
   MeterConfig, 
   ServiceConfig, 
@@ -15,6 +17,15 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(getPricingConfig());
   const [isModified, setIsModified] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    show: false,
+    message: '',
+    type: 'info'
+  });
 
   const handleMeterChange = (id: string, field: keyof MeterConfig, value: number) => {
     setPricingConfig(prev => ({
@@ -51,17 +62,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       lastUpdated: new Date().toISOString()
     };
     
-    // Save to localStorage
-    localStorage.setItem('terraems_pricing_config', JSON.stringify(updatedConfig));
-    setIsModified(false);
-    alert('Pricing configuration saved successfully!');
+    // Save to localStorage using the service function
+    const saveSuccess = savePricingConfig(updatedConfig);
+    
+    if (saveSuccess) {
+      setIsModified(false);
+      setToast({
+        show: true,
+        message: 'Pricing configuration saved successfully!',
+        type: 'success'
+      });
+    } else {
+      setToast({
+        show: true,
+        message: 'Failed to save pricing configuration. Please try again.',
+        type: 'error'
+      });
+    }
+  };
+
+  // Handle logout with confirmation if there are unsaved changes
+  const handleLogoutClick = () => {
+    if (isModified) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to logout?')) {
+        // Remove admin session from localStorage
+        localStorage.removeItem('terraems_admin_session');
+        onLogout();
+      }
+    } else {
+      // Remove admin session from localStorage
+      localStorage.removeItem('terraems_admin_session');
+      onLogout();
+    }
   };
 
   return (
     <div className="container mx-auto p-6 bg-white rounded-lg shadow-md">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard - Pricing Management</h1>
-        <Button variant="secondary" onClick={onLogout}>Logout</Button>
+        <h1 className="text-2xl font-bold text-blue-800">Admin Dashboard - Pricing Management</h1>
+        <Button variant="secondary" onClick={handleLogoutClick}>Logout</Button>
       </div>
 
       <div className="mb-8">
@@ -184,6 +223,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           Save Changes
         </Button>
       </div>
+
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
     </div>
   );
 };
