@@ -1,1 +1,0 @@
-# Quotation for Terrestrial Platform 
