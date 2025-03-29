@@ -6,6 +6,11 @@ import {
   Header, Footer, ImageRun, Tab
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { Button } from './components/Button';
+import AdminLogin from './components/AdminLogin';
+import AdminDashboard from './components/AdminDashboard';
+import { getPricingConfig } from './services/pricingService';
+
 // Define interfaces for clarity
 interface MeterConfig {
   id: string;
@@ -27,6 +32,8 @@ interface ServiceConfig {
 
 const App: React.FC = () => {
   // --- State Variables ---
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   // Energy Meters
   const [meters, setMeters] = useState<MeterConfig[]>([
@@ -45,6 +52,7 @@ const App: React.FC = () => {
   const [terraEdgeRequired, setTerraEdgeRequired] = useState<boolean>(false);
   const [terraEdgePayment, setTerraEdgePayment] = useState<'monthly' | 'one-time'>('monthly'); // Default to monthly
   const [terraEdgeQuantity, setTerraEdgeQuantity] = useState<number>(1); // Added state for quantity
+  const [pricingReloadTrigger, setPricingReloadTrigger] = useState<number>(0);
 
   // Service Charges
   const [services, setServices] = useState<ServiceConfig[]>([
@@ -62,6 +70,39 @@ const App: React.FC = () => {
   const [totalMonthlyCost, setTotalMonthlyCost] = useState<number>(0);
   const [totalOneTimeCost, setTotalOneTimeCost] = useState<number>(0);
 
+  // Load pricing configuration from localStorage or default
+  useEffect(() => {
+    const pricingConfig = getPricingConfig();
+    
+    // Initialize meters with pricing from config
+    setMeters(prevMeters => 
+      prevMeters.map(meter => {
+        const configMeter = pricingConfig.meters.find(m => m.id === meter.id);
+        if (configMeter) {
+          return { ...meter, rateNoAI: configMeter.rateNoAI, rateWithAI: configMeter.rateWithAI };
+        }
+        return meter;
+      })
+    );
+    
+    // Initialize services with pricing from config
+    setServices(prevServices => 
+      prevServices.map(service => {
+        const configService = pricingConfig.services.find(s => s.id === service.id);
+        if (configService) {
+          return { 
+            ...service, 
+            rate: configService.rate, 
+            minimum: configService.minimum 
+          };
+        }
+        return service;
+      })
+    );
+    const edgeConfig = pricingConfig.edgeDevice;
+
+  }, [pricingReloadTrigger]);
+
   // --- Calculation Logic ---
   useEffect(() => {
     // 1. Calculate Meter Costs
@@ -76,11 +117,13 @@ const App: React.FC = () => {
     let currentEdgeMonthly = 0;
     let currentEdgeOneTime = 0;
     if (terraEdgeRequired) {
-       const quantity = Math.max(1, terraEdgeQuantity); // Ensure quantity is at least 1
+      const quantity = Math.max(1, terraEdgeQuantity); // Ensure quantity is at least 1
+      const pricingConfig = getPricingConfig(); // Get latest pricing
+      
       if (terraEdgePayment === 'monthly') {
-        currentEdgeMonthly = 100 * quantity; // TerraEdge per month rate * quantity
+        currentEdgeMonthly = pricingConfig.edgeDevice.monthlyRate * quantity;
       } else {
-        currentEdgeOneTime = 3000 * quantity; // TerraEdge one-time rate * quantity
+        currentEdgeOneTime = pricingConfig.edgeDevice.oneTimeRate * quantity;
       }
     }
     setEdgeCostMonthly(currentEdgeMonthly);
@@ -123,6 +166,7 @@ const App: React.FC = () => {
     setTotalOneTimeCost(currentEdgeOneTime + currentServiceOneTime);
 
   }, [meters, terraAIOptIn, terraEdgeRequired, terraEdgePayment, services, terraEdgeQuantity]); // Added terraEdgeQuantity
+
 
   // --- Event Handlers ---
   const generateWordDocument = () => {
@@ -831,14 +875,14 @@ const App: React.FC = () => {
     }
   };
 
- const handleTerraEdgeQuantityChange = (value: string) => {
+  const handleTerraEdgeQuantityChange = (value: string) => {
     const quantity = parseInt(value, 10);
      if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1
         setTerraEdgeQuantity(quantity);
     } else if (value === '') {
         setTerraEdgeQuantity(1); // Default to 1 if cleared
     }
- };
+  };
 
   const handleServiceSelectionChange = (id: string, selected: boolean) => {
     setServices(prevServices =>
@@ -848,33 +892,58 @@ const App: React.FC = () => {
     );
   };
 
-    const handleServiceQuantityChange = (id: string, value: string) => {
-        const quantity = parseInt(value, 10);
-        if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1 for services like pages/components
-            setServices(prevServices =>
-                prevServices.map(service =>
-                    service.id === id ? { ...service, quantity: quantity } : service
-                )
-            );
-        } else if (value === '') {
-            setServices(prevServices =>
-                prevServices.map(service =>
-                    service.id === id ? { ...service, quantity: 1 } : service // Default to 1 if cleared
-                )
-            );
-        }
-    };
+  const handleServiceQuantityChange = (id: string, value: string) => {
+    const quantity = parseInt(value, 10);
+    if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1 for services like pages/components
+        setServices(prevServices =>
+            prevServices.map(service =>
+                service.id === id ? { ...service, quantity: quantity } : service
+            )
+        );
+    } else if (value === '') {
+        setServices(prevServices =>
+            prevServices.map(service =>
+                service.id === id ? { ...service, quantity: 1 } : service // Default to 1 if cleared
+            )
+        );
+    }
+  };
+
+  const handleAdminLogin = (success: boolean) => {
+    if (success) {
+      setIsAdminLoggedIn(true);
+      setIsAdminLoginOpen(false);
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+     // Trigger a reload of pricing data when returning from admin dashboard
+     setPricingReloadTrigger(prev => prev + 1);
+  };
 
   // --- Render ---
+  if (isAdminLoggedIn) {
+    return <AdminDashboard onLogout={handleAdminLogout} />;
+  }
+
   return (
     <div className="container mx-auto p-4 md:p-8 bg-gray-50 min-h-screen font-sans">
-      <header className="mb-8 text-center">
+      <header className="mb-8 text-center relative">
+        <div className="absolute top-0 right-0">
+          <Button 
+            variant="secondary" 
+            onClick={() => setIsAdminLoginOpen(true)}
+            className="text-sm"
+          >
+            Admin
+          </Button>
+        </div>
         <h1 className="text-3xl md:text-4xl font-bold text-blue-700">TerraEMS Quotation Generator</h1>
         <p className="text-gray-600 mt-2">Bhuj, Gujarat, India Pricing (INR)</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
         {/* Input Section */}
         <section className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
           <h2 className="text-2xl font-semibold mb-6 text-gray-800 border-b pb-2">Configuration</h2>
@@ -922,187 +991,198 @@ const App: React.FC = () => {
           </div>
 
           {/* TerraEdge Device */}
-          <div className="mb-6">
-            <h3 className="text-lg font-medium mb-3 text-gray-700">3. TerraEdge Device</h3>
-            <div className="flex items-center mb-2">
-              <input
-                type="checkbox"
-                id="terraEdge"
-                checked={terraEdgeRequired}
-                onChange={(e) => setTerraEdgeRequired(e.target.checked)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="terraEdge" className="ml-2 text-sm text-gray-700">Require TerraEdge - Modbus RTU/TCP</label>
-            </div>
-            {terraEdgeRequired && (
-              <div className="ml-6 space-y-3"> {/* Increased spacing */}
-                 {/* Quantity Input */}
-                 <div className="flex items-center space-x-2">
-                     <label htmlFor="terraEdgeQty" className="text-sm text-gray-600">Quantity:</label>
-                     <input
-                        type="number"
-                        id="terraEdgeQty"
-                        min="1"
-                        value={terraEdgeQuantity === 0 ? '' : terraEdgeQuantity}
-                        onChange={(e) => handleTerraEdgeQuantityChange(e.target.value)}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="Qty"
-                      />
-                 </div>
+          // Inside the TerraEdge Device section of the UI
+<div className="mb-6">
+  <h3 className="text-lg font-medium mb-3 text-gray-700">3. TerraEdge Device</h3>
+  <div className="flex items-center mb-2">
+    <input
+      type="checkbox"
+      id="terraEdge"
+      checked={terraEdgeRequired}
+      onChange={(e) => setTerraEdgeRequired(e.target.checked)}
+      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+    />
+    <label htmlFor="terraEdge" className="ml-2 text-sm text-gray-700">Require TerraEdge - Modbus RTU/TCP</label>
+  </div>
+  {terraEdgeRequired && (
+    <div className="ml-6 space-y-3">
+      {/* Quantity Input */}
+      <div className="flex items-center space-x-2">
+        <label htmlFor="terraEdgeQty" className="text-sm text-gray-600">Quantity:</label>
+        <input
+          type="number"
+          id="terraEdgeQty"
+          min="1"
+          value={terraEdgeQuantity === 0 ? '' : terraEdgeQuantity}
+          onChange={(e) => handleTerraEdgeQuantityChange(e.target.value)}
+          className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+          placeholder="Qty"
+        />
+      </div>
 
-                 {/* Payment Option */}
-                 <div>
-                    <p className="text-sm text-gray-600 mb-1">Payment Option:</p>
-                    <div className="flex items-center">
-                      <input
-                    type="radio"
-                    id="edgeMonthly"
-                    name="edgePayment"
-                    value="monthly"
-                    checked={terraEdgePayment === 'monthly'}
-                    onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
-                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                  />
-                  <label htmlFor="edgeMonthly" className="ml-2 text-sm text-gray-700">Monthly (₹100/month)</label>
+      {/* Payment Option */}
+      <div>
+        <p className="text-sm text-gray-600 mb-1">Payment Option:</p>
+        <div className="flex items-center">
+          <input
+            type="radio"
+            id="edgeMonthly"
+            name="edgePayment"
+            value="monthly"
+            checked={terraEdgePayment === 'monthly'}
+            onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
+            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+          />
+          <label htmlFor="edgeMonthly" className="ml-2 text-sm text-gray-700">
+            Monthly (₹{getPricingConfig().edgeDevice.monthlyRate}/month)
+          </label>
+        </div>
+        <div className="flex items-center">
+          <input
+            type="radio"
+            id="edgeOneTime"
+            name="edgePayment"
+            value="one-time"
+            checked={terraEdgePayment === 'one-time'}
+            onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
+            className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+          />
+          <label htmlFor="edgeOneTime" className="ml-2 text-sm text-gray-700">
+            One-Time (₹{getPricingConfig().edgeDevice.oneTimeRate})
+          </label>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+
+                    
+        {/* Service Charges */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium mb-3 text-gray-700">4. Service Charges (One-Time)</h3>
+          <div className="space-y-4">
+            {services.map((service) => (
+              <div key={service.id}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center flex-1 mr-4">
+                    <input
+                      type="checkbox"
+                      id={service.id}
+                      checked={service.selected}
+                      onChange={(e) => handleServiceSelectionChange(service.id, e.target.checked)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      // Disable AI Philosophy if TerraAI is not selected
+                      disabled={service.id === 's2' && !terraAIOptIn}
+                    />
+                    <label htmlFor={service.id} className={`ml-2 text-sm text-gray-700 ${service.id === 's2' && !terraAIOptIn ? 'text-gray-400' : ''}`}>
+                      {service.name}
+                      {service.rate && <span className="text-xs text-gray-500"> (₹{service.rate}{service.unit ? ` ${service.unit}` : ''})</span>}
+                      {service.minimum && <span className="text-xs text-gray-500"> (Min. ₹{service.minimum})</span>}
+                    </label>
+                  </div>
+                  {/* Input for quantity if applicable (e.g., mimics pages, components) */}
+                  {(service.id === 's1' || service.id === 's2' || service.id === 's3') && service.selected && (
+                    <input
+                      type="number"
+                      min="1"
+                      value={service.quantity === 0 ? '' : service.quantity}
+                      onChange={(e) => handleServiceQuantityChange(service.id, e.target.value)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder={service.id === 's1' ? "Pages" : "Components"}
+                    />
+                  )}
                 </div>
-                <div className="flex items-center">
-                  <input
-                                        type="radio"
-                                        id="edgeOneTime"
-                                        name="edgePayment"
-                                        value="one-time"
-                                        checked={terraEdgePayment === 'one-time'}
-                                        onChange={(e) => setTerraEdgePayment(e.target.value as 'monthly' | 'one-time')}
-                                        className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                      />
-                                      <label htmlFor="edgeOneTime" className="ml-2 text-sm text-gray-700">One-Time (₹3000)</label>
-                                    </div>
-                                    </div> {/* Added missing closing div for payment options wrapper */}
-                                  </div>
-                                )}
-                              </div>
+                {/* Warning for AI Philosophy without TerraAI */}
+                {service.id === 's2' && !terraAIOptIn && service.selected && (
+                  <p className="text-xs text-red-500 ml-6 mt-1">Requires TerraAI Opt-in.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
                     
-                              {/* Service Charges */}
-                              <div className="mb-6">
-                                <h3 className="text-lg font-medium mb-3 text-gray-700">4. Service Charges (One-Time)</h3>
-                                <div className="space-y-4">
-                                  {services.map((service) => (
-                                    <div key={service.id}>
-                                      <div className="flex items-center justify-between">
-                                         <div className="flex items-center flex-1 mr-4">
-                                            <input
-                                                type="checkbox"
-                                                id={service.id}
-                                                checked={service.selected}
-                                                onChange={(e) => handleServiceSelectionChange(service.id, e.target.checked)}
-                                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                // Disable AI Philosophy if TerraAI is not selected
-                                                disabled={service.id === 's2' && !terraAIOptIn}
-                                            />
-                                            <label htmlFor={service.id} className={`ml-2 text-sm text-gray-700 ${service.id === 's2' && !terraAIOptIn ? 'text-gray-400' : ''}`}>
-                                                {service.name}
-                                                {service.rate && <span className="text-xs text-gray-500"> (₹{service.rate}{service.unit ? ` ${service.unit}` : ''})</span>}
-                                                {service.minimum && <span className="text-xs text-gray-500"> (Min. ₹{service.minimum})</span>}
-                                            </label>
-                                         </div>
-                                        {/* Input for quantity if applicable (e.g., mimics pages, components) */}
-                                        {(service.id === 's1' || service.id === 's2' || service.id === 's3') && service.selected && (
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            value={service.quantity === 0 ? '' : service.quantity}
-                                            onChange={(e) => handleServiceQuantityChange(service.id, e.target.value)}
-                                            className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                            placeholder={service.id === 's1' ? "Pages" : "Components"}
-                                          />
-                                        )}
-                                      </div>
-                                       {/* Warning for AI Philosophy without TerraAI */}
-                                       {service.id === 's2' && !terraAIOptIn && service.selected && (
-                                           <p className="text-xs text-red-500 ml-6 mt-1">Requires TerraAI Opt-in.</p>
-                                       )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
+      {/* Output/Summary Section */}
+      <section className="bg-white p-6 rounded-lg shadow-md border border-gray-200 h-fit">
+        <h2 className="text-2xl font-semibold mb-6 text-gray-800 border-b pb-2">Quotation Summary</h2>
                     
-                            </section>
+        <div className="space-y-4">
+          {/* Monthly Costs */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Estimated Monthly Costs</h3>
+            <div className="pl-4 space-y-1 text-sm text-gray-600">
+              <p>Energy Meters: <span className="font-medium">₹{monthlyMeterCost.toFixed(2)}</span></p>
+              {terraEdgeRequired && terraEdgePayment === 'monthly' && (
+                <p>TerraEdge Device ({terraEdgeQuantity} unit{terraEdgeQuantity > 1 ? 's' : ''}): <span className="font-medium">₹{edgeCostMonthly.toFixed(2)}</span></p>
+              )}
+              {/* Add monthly service costs here if any */}
+            </div>
+            <p className="mt-2 text-lg font-semibold text-blue-700">Total Monthly: ₹{totalMonthlyCost.toFixed(2)}</p>
+          </div>
                     
-                            {/* Output/Summary Section */}
-                            <section className="bg-white p-6 rounded-lg shadow-md border border-gray-200 h-fit">
-                              <h2 className="text-2xl font-semibold mb-6 text-gray-800 border-b pb-2">Quotation Summary</h2>
+          <hr className="my-4 border-gray-200"/>
                     
-                              <div className="space-y-4">
-                                {/* Monthly Costs */}
-                                <div>
-                                  <h3 className="text-lg font-medium text-gray-700 mb-2">Estimated Monthly Costs</h3>
-                                  <div className="pl-4 space-y-1 text-sm text-gray-600">
-                                    <p>Energy Meters: <span className="font-medium">₹{monthlyMeterCost.toFixed(2)}</span></p>
-                                    {terraEdgeRequired && terraEdgePayment === 'monthly' && (
-                                      <p>TerraEdge Device ({terraEdgeQuantity} unit{terraEdgeQuantity > 1 ? 's' : ''}): <span className="font-medium">₹{edgeCostMonthly.toFixed(2)}</span></p>
-                                    )}
-                                     {/* Add monthly service costs here if any */}
-                                  </div>
-                                  <p className="mt-2 text-lg font-semibold text-blue-700">Total Monthly: ₹{totalMonthlyCost.toFixed(2)}</p>
-                                </div>
+          {/* One-Time Costs */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Estimated One-Time Costs</h3>
+            <div className="pl-4 space-y-1 text-sm text-gray-600">
+              {terraEdgeRequired && terraEdgePayment === 'one-time' && (
+                <p>TerraEdge Device ({terraEdgeQuantity} unit{terraEdgeQuantity > 1 ? 's' : ''}): <span className="font-medium">₹{edgeCostOneTime.toFixed(2)}</span></p>
+              )}
+              {serviceCostOneTime > 0 && (
+                <>
+                  <p className="font-medium mt-1">Services:</p>
+                  <ul className="list-disc list-inside pl-2">
+                    {services.filter(s => s.selected).map(s => {
+                      let cost = 0;
+                      let displayQuantity = s.quantity ?? 1;
+                      if (s.id === 's1') cost = s.rate * displayQuantity;
+                      else if (s.id === 's2' && terraAIOptIn) cost = Math.max(s.rate * displayQuantity, s.minimum ?? 0);
+                      else if (s.id === 's3') cost = Math.max(s.rate * displayQuantity, s.minimum ?? 0);
                     
-                                <hr className="my-4 border-gray-200"/>
+                      return cost > 0 ? (
+                        <li key={s.id}>
+                          {s.name}
+                          {(s.id === 's1' || s.id === 's2' || s.id === 's3') && ` (Qty: ${displayQuantity})`}: ₹{cost.toFixed(2)}
+                          {s.minimum && cost === s.minimum && s.rate * displayQuantity < s.minimum && <span className="text-xs"> (Minimum applied)</span>}
+                        </li>
+                      ) : null;
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
+            <p className="mt-2 text-lg font-semibold text-blue-700">Total One-Time: ₹{totalOneTimeCost.toFixed(2)}</p>
+          </div>
+        </div>
                     
-                                {/* One-Time Costs */}
-                                <div>
-                                  <h3 className="text-lg font-medium text-gray-700 mb-2">Estimated One-Time Costs</h3>
-                                  <div className="pl-4 space-y-1 text-sm text-gray-600">
-                                    {terraEdgeRequired && terraEdgePayment === 'one-time' && (
-                                      <p>TerraEdge Device ({terraEdgeQuantity} unit{terraEdgeQuantity > 1 ? 's' : ''}): <span className="font-medium">₹{edgeCostOneTime.toFixed(2)}</span></p>
-                                    )}
-                                    {serviceCostOneTime > 0 && (
-                                        <>
-                                         <p className="font-medium mt-1">Services:</p>
-                                         <ul className="list-disc list-inside pl-2">
-                                            {services.filter(s => s.selected).map(s => {
-                                                let cost = 0;
-                                                let displayQuantity = s.quantity ?? 1;
-                                                if (s.id === 's1') cost = s.rate * displayQuantity;
-                                                else if (s.id === 's2' && terraAIOptIn) cost = Math.max(s.rate * displayQuantity, s.minimum ?? 0);
-                                                else if (s.id === 's3') cost = Math.max(s.rate * displayQuantity, s.minimum ?? 0);
+        {/* Optional: Add a print button */}
+        <div className="mt-8 text-center flex justify-center space-x-4">
+          <button
+            onClick={() => window.print()}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
+          >
+            Print Quotation
+          </button>
+          <button
+            onClick={generateWordDocument}
+            className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out"
+          >
+            Download as DOC
+          </button>
+        </div>
+      </section>
+    </div>
+
+    {/* Admin Login Modal */}
+    {isAdminLoginOpen && (
+      <AdminLogin 
+        onLogin={handleAdminLogin} 
+        onClose={() => setIsAdminLoginOpen(false)} 
+      />
+    )}
+  </div>
+  );
+};
                     
-                                                return cost > 0 ? (
-                                                    <li key={s.id}>
-                                                        {s.name}
-                                                        {(s.id === 's1' || s.id === 's2' || s.id === 's3') && ` (Qty: ${displayQuantity})`}: ₹{cost.toFixed(2)}
-                                                        {s.minimum && cost === s.minimum && s.rate * displayQuantity < s.minimum && <span className="text-xs"> (Minimum applied)</span>}
-                                                    </li>
-                                                ) : null;
-                                            })}
-                                         </ul>
-                                        </>
-                                    )}
-                                  </div>
-                                  <p className="mt-2 text-lg font-semibold text-blue-700">Total One-Time: ₹{totalOneTimeCost.toFixed(2)}</p>
-                                </div>
-                              </div>
-                    
-                               {/* Optional: Add a print button */}
-                               <div className="mt-8 text-center flex justify-center space-x-4">
-                                <button
-                                  onClick={() => window.print()}
-                                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
-                                >
-                                  Print Quotation
-                                </button>
-                                <button
-                                  onClick={generateWordDocument}
-                                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out"
-                                >
-                                  Download as DOC
-                                </button>
-                              </div>
-                    
-                            </section>
-                          </div>
-                        </div>
-                      );
-                    };
-                    
-                    export default App;
-                    
+export default App;

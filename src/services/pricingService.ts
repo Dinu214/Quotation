@@ -64,21 +64,12 @@ export const getPricingConfig = (): PricingConfig => {
 };
 
 // Save pricing data to localStorage
-export const savePricingConfig = (config: PricingConfig): void => {
+export const savePricingConfig = (config: PricingConfig): boolean => {
   try {
-    // Update the last updated timestamp
-    const updatedConfig = {
-      ...config,
-      lastUpdated: new Date().toISOString()
-    };
-    localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(updatedConfig));
+    localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(config));
+    return true;
   } catch (error) {
     console.error('Error saving pricing data:', error);
+    return false;
   }
-};
-
-// Reset pricing to defaults
-export const resetPricingConfig = (): PricingConfig => {
-  localStorage.setItem(PRICING_STORAGE_KEY, JSON.stringify(defaultPricing));
-  return defaultPricing;
 };
