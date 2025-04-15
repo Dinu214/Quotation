@@ -895,10 +895,10 @@ const App: React.FC = () => {
 
   const handleTerraEdgeQuantityChange = (value: string) => {
     const quantity = parseInt(value, 10);
-     if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1
-        setTerraEdgeQuantity(quantity);
+    if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1
+      setTerraEdgeQuantity(quantity);
     } else if (value === '') {
-        setTerraEdgeQuantity(1); // Default to 1 if cleared
+      setTerraEdgeQuantity(0); // Allow empty value (0) instead of defaulting to 1
     }
   };
 
@@ -913,17 +913,17 @@ const App: React.FC = () => {
   const handleServiceQuantityChange = (id: string, value: string) => {
     const quantity = parseInt(value, 10);
     if (!isNaN(quantity) && quantity >= 1) { // Ensure quantity is at least 1 for services like pages/components
-        setServices(prevServices =>
-            prevServices.map(service =>
-                service.id === id ? { ...service, quantity: quantity } : service
-            )
-        );
+      setServices(prevServices =>
+        prevServices.map(service =>
+          service.id === id ? { ...service, quantity: quantity } : service
+        )
+      );
     } else if (value === '') {
-        setServices(prevServices =>
-            prevServices.map(service =>
-                service.id === id ? { ...service, quantity: 1 } : service // Default to 1 if cleared
-            )
-        );
+      setServices(prevServices =>
+        prevServices.map(service =>
+          service.id === id ? { ...service, quantity: 0 } : service // Allow empty value (0) instead of defaulting to 1
+        )
+      );
     }
   };
 
@@ -1040,7 +1040,7 @@ const App: React.FC = () => {
                 <input
                   type="number"
                   id="terraEdgeQty"
-                  min="1"
+                  
                   value={terraEdgeQuantity === 0 ? '' : terraEdgeQuantity}
                   onChange={(e) => handleTerraEdgeQuantityChange(e.target.value)}
                   className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
